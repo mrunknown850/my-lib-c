@@ -1,4 +1,4 @@
-#include "mylloc.h"
+#include "my_malloc.h"
 #include <stddef.h>
 #include <stdio.h>
 
@@ -7,5 +7,6 @@ int main() {
   scanf("%d", &a);
 
   void *something_nice = MyMalloc(a);
+  void *more_nice = MyMalloc(2 * a);
   return 0;
 }
