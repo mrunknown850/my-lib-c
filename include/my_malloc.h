@@ -18,6 +18,6 @@ struct ChunkNode {
 typedef struct ChunkNode *ChunkPtr;
 
 void *MyMalloc(size_t size);
-int MyFree(void *ptr);
+void MyFree(void *ptr);
 
 #endif

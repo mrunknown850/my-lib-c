@@ -5,6 +5,12 @@
 ChunkPtr chunk_head = NULL;
 const size_t CHUNK_META_SIZE = sizeof(struct ChunkNode);
 
+/**
+ * @brief Rouding up to next power of two
+ *
+ * @param _t Number to round up to
+ * @return Number after rounding
+ */
 static size_t round_up(const size_t *_t) {
   size_t ret = *_t;
   ret -= 1;
@@ -17,11 +23,30 @@ static size_t round_up(const size_t *_t) {
   return ret;
 }
 
+/**
+ * @brief Allocating block of memory through sys/mmap(...)
+ *
+ * @param _init_size Size available after mmap
+ */
+static void *allocate_block(size_t _init_size) {
+  void *addr = mmap(NULL, _init_size + CHUNK_META_SIZE, PROT_READ | PROT_WRITE,
+                    MAP_ANON | MAP_PRIVATE, -1, 0);
+  ChunkPtr chunk = (ChunkPtr)(addr);
+  chunk->is_free = true;
+  chunk->size = _init_size;
+  return addr;
+}
+
+/**
+ * @brief Allocating chunk
+ *
+ * @param size Allocation size
+ */
 static void *allocate(size_t size) {
   ChunkPtr cur = chunk_head;
-  // Traverse through linked list and break at the last chunk
-  while (true) {
 
+  // Cycle through chunks
+  while (true) {
     if (cur->is_free) {
       // In case size fully encapsulate the free chunk,
       // immediately allocate entire chunk
@@ -55,58 +80,26 @@ static void *allocate(size_t size) {
   }
 
   // Current mmap block is fully filled. Ask system for more
-  void *new_mmap = mmap(NULL, round_up(&size), PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANON, -1, 0);
-  if (new_mmap == (void *)-1)
-    return NULL;
-
-  ChunkPtr new_block = (ChunkPtr)(new_mmap);
-  new_block->is_free = false;
-  new_block->size = size;
+  ChunkPtr new_block = (ChunkPtr)allocate_block(round_up(&size));
   new_block->prev_chunk = cur;
   new_block->next_chunk = NULL;
-
   cur->next_chunk = new_block;
 
-  ChunkPtr free_block = (ChunkPtr)((char *)cur + CHUNK_META_SIZE + size);
-  free_block->size = round_up(&size) - size - CHUNK_META_SIZE;
-  free_block->is_free = true;
-  free_block->next_chunk = NULL;
-  free_block->prev_chunk = new_block;
-
-  new_block->next_chunk = free_block;
-
-  return (new_block + 1);
+  return allocate(size);
 }
 
-int initialize(size_t _init_size) {
-  void *start_addr = mmap(NULL, _init_size, PROT_READ | PROT_WRITE,
-                          MAP_PRIVATE | MAP_ANON, -1, 0);
-
-  if (start_addr == (void *)-1)
-    return 1;
-
-  // Adding ChunkHead into allocated mem region
-  ChunkPtr head_ptr = (ChunkPtr)(start_addr);
-  head_ptr->is_free = true;
-  head_ptr->size = _init_size - CHUNK_META_SIZE;
-  head_ptr->prev_chunk = NULL;
-  head_ptr->next_chunk = NULL;
-
-  // Set head
-  chunk_head = head_ptr;
-
-  return 0;
-}
-
+/**
+ * @brief Basic heap memory allocation
+ *
+ * @param size Allocation size
+ */
 void *MyMalloc(size_t size) {
   // Initialize ChunkNode linked-lists
   if (chunk_head == NULL) {
-    // Round requested mem to the next power of two
-    size_t syscall_size = round_up(&size);
-    // Return error code
-    if (initialize(syscall_size))
-      return (void *)-1;
+    ChunkPtr head = allocate_block(round_up(&size));
+    chunk_head = head;
   }
   return allocate(size);
 }
+
+void MyFree(void *_ptr) {}
